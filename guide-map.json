@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "pages": {
+    "index": {
+      "title": "RH850 Bootloader 實作指南",
+      "description": "RH850 MCU device 的 Boot、App 與通訊驗證入口。"
+    },
+    "can-device": {
+      "title": "Classical CAN／CAN FD device 工程",
+      "description": "EVM、CAN port、接收資源、更新 owner 與 Boot 啟動流程。"
+    },
+    "app-development": {
+      "title": "App Metadata、IRQ 與更新耗時",
+      "description": "C header 編輯、512-entry IRQ table、建置產物及 CAN FD 實測時間。"
+    },
+    "serial-device": {
+      "title": "UART／Xmodem／I2C device 工程",
+      "description": "獨立串列工程、資料／Log 介面與 IRQ／回覆完成邊界。"
+    },
+    "porting": {
+      "title": "Boot／App 移植與 Flash",
+      "description": "位址、HAL 入口、FCL RAM 執行、startup 與映像交接。"
+    },
+    "reference": {
+      "title": "映像、Metadata 與 CAN 封包參考",
+      "description": "RH850 位址、256-byte Metadata 範例、8-byte control 與 raw data。"
+    },
+    "tool-guides": {
+      "title": "Tool 操作與通訊驗證入口",
+      "description": "共用 ISP Tool、更新報告、Custom Transfer 與操作章節的連結。"
+    }
+  },
+  "aliases": {
+    "rh850-can-device": {
+      "page": "can-device.html",
+      "anchor": "rh850-can-device"
+    },
+    "rh850-evm-can-ports": {
+      "page": "can-device.html",
+      "anchor": "rh850-evm-can-ports"
+    },
+    "rh850-can-service": {
+      "page": "can-device.html",
+      "anchor": "rh850-can-service"
+    },
+    "rh850-update-port-owner": {
+      "page": "can-device.html",
+      "anchor": "rh850-update-port-owner"
+    },
+    "rh850-app-editing": {
+      "page": "app-development.html",
+      "anchor": "rh850-app-editing"
+    },
+    "rh850-irq-entry": {
+      "page": "app-development.html",
+      "anchor": "rh850-irq-entry"
+    },
+    "rh850-build-products": {
+      "page": "app-development.html",
+      "anchor": "rh850-build-products"
+    },
+    "rh850-update-timing": {
+      "page": "app-development.html",
+      "anchor": "rh850-update-timing"
+    },
+    "rh850-serial-runtime": {
+      "page": "serial-device.html",
+      "anchor": "rh850-serial-runtime"
+    },
+    "rh850-serial-sc-roundtrip": {
+      "page": "serial-device.html",
+      "anchor": "rh850-serial-sc-roundtrip"
+    },
+    "rh850-flash-layout": {
+      "page": "porting.html",
+      "anchor": "rh850-flash-layout"
+    },
+    "rh850-project-entry": {
+      "page": "porting.html",
+      "anchor": "rh850-project-entry"
+    },
+    "rh850-flash-ram": {
+      "page": "porting.html",
+      "anchor": "rh850-flash-ram"
+    },
+    "rh850-startup-handoff": {
+      "page": "porting.html",
+      "anchor": "rh850-startup-handoff"
+    },
+    "rh850-image-reference": {
+      "page": "reference.html",
+      "anchor": "rh850-image-reference"
+    },
+    "rh850-metadata-bytes": {
+      "page": "reference.html",
+      "anchor": "rh850-metadata-bytes"
+    },
+    "rh850-can-frames": {
+      "page": "reference.html",
+      "anchor": "rh850-can-frames"
+    },
+    "rh850-can-page-flow": {
+      "page": "reference.html",
+      "anchor": "rh850-can-page-flow"
+    }
+  }
+}
