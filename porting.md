@@ -6,7 +6,56 @@
 
 位址、HAL 入口、FCL RAM 執行、startup 與映像交接。
 
+<!-- BOOTLOADER_TOPICS_BEGIN -->
+## 本頁主題
+
+| 章節／規格 | 本頁 | 另一平台 |
+| --- | --- | --- |
+| Basic 範例與 CAN golden sample | [閱讀](#guide-porting-1) | [RL78](../slide_boot_loader_for_RL78/porting.html#guide-porting-1) |
+| 1. 工程來源 | [閱讀](#guide-porting-2) | [RL78](../slide_boot_loader_for_RL78/porting.html#guide-porting-2) |
+| 2. Flash 與映像配置 | [閱讀](#guide-porting-3) | [RL78](../slide_boot_loader_for_RL78/porting.html#guide-porting-3) |
+| 重要事項：Boot 燒錄方式與 Flash 尾端保護 | [閱讀](#guide-porting-4) | [RL78](../slide_boot_loader_for_RL78/porting.html#guide-porting-4) |
+| 3. Startup、RAM 與中斷交接 | [閱讀](#guide-porting-5) | [RL78](../slide_boot_loader_for_RL78/porting.html#guide-porting-5) |
+| 使用者程式入口與 Generate Code | [閱讀](#guide-porting-6) | [RL78](../slide_boot_loader_for_RL78/porting.html#guide-porting-6) |
+| Code Flash 擦寫：ROM 儲存與 RAM 執行 | [閱讀](#guide-porting-7) | [RL78](../slide_boot_loader_for_RL78/porting.html#guide-porting-7) |
+| 映像 CRC32 與硬體 CRC | [閱讀](#guide-porting-8) | [RL78](../slide_boot_loader_for_RL78/porting.html#guide-porting-8) |
+| 4. 固定向量介面 | [閱讀](#guide-porting-9) | [RL78](../slide_boot_loader_for_RL78/porting.html#guide-porting-9) |
+| 5. 設定檔與建置 | [閱讀](#guide-porting-10) | [RL78](../slide_boot_loader_for_RL78/porting.html#guide-porting-10) |
+| 6. 初次安裝與後續更新 | [閱讀](#guide-porting-11) | [RL78](../slide_boot_loader_for_RL78/porting.html#guide-porting-11) |
+| 7. 啟動與更新流程 | [閱讀](#guide-porting-12) | [RL78](../slide_boot_loader_for_RL78/porting.html#guide-porting-12) |
+| 8. App 變更與驗證 | [閱讀](#guide-porting-13) | [RL78](../slide_boot_loader_for_RL78/porting.html#guide-porting-13) |
+<!-- BOOTLOADER_TOPICS_END -->
+
 <!-- RH850_PORTING_CHAPTER_BEGIN -->
+## MCU CAN device：Boot 與 App 工程
+
+<a id="guide-porting-1"></a>
+
+### Basic 範例與 CAN golden sample
+
+本指南以包含 Metadata、IRQ、版本政策與完整映像 CRC 的 ISP 工程為配置基準。
+對照簡易 Boot 或導入其他 RH850 專案時，可依下表選擇需要保留的契約。
+
+| 項目 | 此 RH850 ISP 工程的規格 | 導入其他 Boot 時核對 |
+| --- | --- | --- |
+| 更新入口 | 單一資料介面的 Boot／App，另有獨立診斷 Log | 接線、協定、回覆完成與 reset |
+| 映像 | App entry、256-byte Metadata、exception、512-entry INTBP、code與CRC | linker／封裝／Boot驗證使用相同layout |
+| 工程配置 | C header／本機PowerShell生成與post-build實際映像檢查 | 編輯輸入與自動產物分開 |
+| 啟動保護 | profile／範圍／IRQ目的地／CRC／有效App版本政策 | 啟動與更新均套用相同契約 |
+| Flash | FCL RAM執行、geometry與App範圍保護 | 使用目標MCU支援的library與RAM配置 |
+
+<a id="guide-porting-2"></a>
+
+### 1. 工程來源
+
+CAN／CAN FD 的 Boot、App、Transfer 是獨立工程；串列 ISP 亦各自持有來源與工具。
+具體名稱見 [工程與用途](can-device.html#rh850-can-device) 與 [串列工程](serial-device.html)。
+App 功能修改從該 App 的 `custom_func.c`、`app_image_config.h` 及 `app_irq_handlers.h` 開始。
+
+<a id="guide-porting-3"></a>
+
+### 2. Flash 與映像配置
+
 <a id="rh850-flash-layout"></a>
 
 ### Flash 與 RAM 位址
@@ -35,9 +84,56 @@ Cold reset 初始化 handoff RAM 的 ECC；Boot→App 與 software reset 保留�
 EVM startup 的 LRAM ECC 初始化從 `0xFEDE0000` 開始，涵蓋96 KiB LRAM；上表為本工程目前實際配置的子區域。
 Cookie 是啟動交接資訊，不是認證機制，也不是斷電後保留的版控儲存區。
 
+<a id="guide-porting-4"></a>
+
+#### 重要事項：Boot 燒錄方式與 Flash 尾端保護
+
+| 項目 | 此 R7F701684 工程的配置／檢查 |
+| --- | --- |
+| Boot安裝檔 | `boot0000_FFFF.hex`，範圍0..FFFF；先核對目標MCU與燒錄範圍 |
+| App完整容量 | 960KiB，起點10000h、上限FFFFFh；長度含Metadata、IRQ、填充與CRC |
+| 滿容量CRC位置 | FFFFCh..FFFFFh；由實際image_size決定，不是另一段獨立保留資料 |
+| E2 monitor | 預留在RAM FEDF4800h..FEDF6DFFh；CS+設定的global alias為FEBF4800h、9728bytes |
+| CS+下載後 | 核對實際Boot映像、clock與Work RAM設定；離開debug後依獨立運行條件測試 |
+| 燒錄器安裝後 | 以工具readback／compare核對Boot範圍；再用同一份App BIN驗證啟動 |
+
+此工程的 monitor RAM、RAM reader及FCL區域由linker／post-build guard分開保護。
+更換MCU、debug工具或分區時，重新核對相應工具設定與完整映像末端，不沿用其他MCU的保留量。
+
+<a id="guide-porting-5"></a>
+
+### 3. Startup、RAM 與中斷交接
+
+<a id="rh850-startup-handoff"></a>
+
+
+
+#### Startup、RAM 與 IRQ 交接
+
+EVM 使用 R7F701684、外部 16 MHz，工程配置 CPU 120 MHz、CAN communication clock 40 MHz。
+Boot 建立時脈與 RAM／ECC 狀態；App 接續核對交接時脈，再初始化自己的周邊。
+
+| 項目 | Boot／App 配置 | 修改時的來源 |
+| --- | --- | --- |
+| Boot 分區 | 起點 0；預留 64 KiB | `image_metadata_config.h`、linker 與實際 map |
+| App 入口 | `0x10000` 的跳轉入口 | `app_entry.asm` 與實際封裝 BIN |
+| Exception table | App EBASE 指向 `0x10200` | App startup／exception stub |
+| EIINT table | App INTBP 指向 `0x10400`，512 entries | `app_irq_handlers.h`、產表工具及 linker |
+| RAM cookie | signature、request、反碼與 AA／55 owner | 本機 `boot_app_handoff.h` 與 handoff API |
+| FCL／RAM reader | 專用 RAM 區域及可執行範圍 | Flash／image API、linker 與 post-build guard |
+
+Boot→App 交接會先遮罩中斷、停止 Boot 周邊、更新 RAM cookie，再透過 assembly 入口設定 App 的 EBASE／INTBP。
+App 的一般 EIINT 依 App table 直接取得 handler；完整路徑與新增 IRQ 步驟見 [IRQ 編輯](app-development.html#rh850-app-editing)。
+
+
+
+<a id="guide-porting-6"></a>
+
+#### 使用者程式入口與 Generate Code
+
 <a id="rh850-project-entry"></a>
 
-## 工程目錄與使用者入口
+##### 工程目錄與使用者入口
 
 Boot、App、Custom Transfer 各自包含來源、設定與 PowerShell 工具。
 在所選工程根目錄執行 `build.ps1`，只建置該工程。
@@ -67,9 +163,20 @@ flowchart LR
     BUILD --> OUT["identity / vectors / BIN / HTML"]
 ```
 
+
+
+SC 原稿與自訂入口分開維護：先在SC調整周邊，產生後使用本工程的受控projection與來源註冊。
+`main.c`／startup adapter接入`hardware_init()`及`loop()`；新增App功能放在`custom_func.c`，不新增第二個main。
+
+<a id="guide-porting-7"></a>
+
+#### Code Flash 擦寫：ROM 儲存與 RAM 執行
+
 <a id="rh850-flash-ram"></a>
 
-## Flash library 與 RAM 執行
+
+
+##### Flash library 與 RAM 執行
 
 Boot 使用 RH850 FCL internal-handler mode。
 `Device_FlashInit()` 依序執行 `R_FCL_Init()`、`R_FCL_CopySections()` 與 `R_FCL_CMD_PREPARE_ENV`，再讀回並核對 Flash block 數量與邊界。
@@ -102,26 +209,80 @@ flowchart TD
 RAM reader 處理可能空白或更新中斷的 Flash 資料，並依現有 API 暫時處理 data ECC 控制後恢復設定。
 這是映像資料讀取流程；電氣時序、ECC fault 與中斷／斷電測試分別依實板條件驗證。
 
-<a id="rh850-startup-handoff"></a>
 
-## Startup、RAM 與 IRQ 交接
 
-EVM 使用 R7F701684、外部 16 MHz，工程配置 CPU 120 MHz、CAN communication clock 40 MHz。
-Boot 建立時脈與 RAM／ECC 狀態；App 接續核對交接時脈，再初始化自己的周邊。
+<a id="guide-porting-8"></a>
 
-| 項目 | Boot／App 配置 | 修改時的來源 |
+#### 映像 CRC32 與硬體 CRC
+
+| 項目 | 工程規格／選擇依據 |
+| --- | --- |
+| 完整映像CRC | CRC32/ISO-HDLC，reflected polynomial EDB88320h，initial／final XOR FFFFFFFFh |
+| 計算範圍 | App BIN除末端4bytes；包含entry、Metadata、exception／INTBP、code與填充 |
+| 軟體後端 | `hal/image/device_image.c` 的 `Device_Crc32Update()`／`Device_Crc32()` |
+| Flash讀取 | 由安全read callback提供RAM資料；CRC算法不直接依賴CAN、FCL或周邊暫存器 |
+| 使用軟體CRC的作用 | PC封裝器與各MCU使用相同輸入、byte順序及check vector，可逐byte比對 |
+| 換成硬體後端 | 先核對poly、reflection、seed、final XOR、餵入順序及尾數處理，再用相同向量與實際BIN比對 |
+
+標準檢查字串`123456789`的結果為`CBF43926h`。
+更換CRC後端可以保留相同映像格式；讀取Code Flash的ECC及RAM執行條件仍由平台API負責。
+演算法與完整位址範圍見 [CRC參考](reference.html#rh850-crc-reference)。
+
+<a id="guide-porting-9"></a>
+
+### 4. 固定向量介面
+
+| 項目 | RH850 App規格 |
+| --- | --- |
+| App entry | 10000h的跳轉入口 |
+| Exception table | EBASE=10200h，32個16-byte slots |
+| EIINT table | INTBP=10400h，512個4-byte handler addresses |
+| Mapping輸入 | `app_irq_handlers.h`，數字為EIINT channel index |
+| 交接時 | Boot遮罩IRQ、停止周邊，設定App EBASE／INTBP及PSW.EBV後進入App startup |
+| App IRQ時 | table reference直接使用App table；CC-RH ISR以EIRET返回 |
+
+新增ISR與mapping的完整步驟見 [App Vector Table](app-development.html#rh850-app-editing)。
+表格位置與大小固定；Boot／App各自連結並各自驗證目的地。
+
+<a id="guide-porting-10"></a>
+
+### 5. 設定檔與建置
+
+| 類型 | 使用者編輯 | 建置核對 |
 | --- | --- | --- |
-| Boot 分區 | 起點 0；預留 64 KiB | `image_metadata_config.h`、linker 與實際 map |
-| App 入口 | `0x10000` 的跳轉入口 | `app_entry.asm` 與實際封裝 BIN |
-| Exception table | App EBASE 指向 `0x10200` | App startup／exception stub |
-| EIINT table | App INTBP 指向 `0x10400`，512 entries | `app_irq_handlers.h`、產表工具及 linker |
-| RAM cookie | signature、request、反碼與 AA／55 owner | 本機 `boot_app_handoff.h` 與 handoff API |
-| FCL／RAM reader | 專用 RAM 區域及可執行範圍 | Flash／image API、linker 與 post-build guard |
+| App identity／IRQ | `app_image_config.h`／`app_irq_handlers.h` | pre-build產生identity／512-entry table |
+| MCU／Flash／ISP | `image_metadata_config.h`及介面設定header | 兩映像契約、linker、實際timing／pin |
+| RAM／Flash API | `hal/device`／`hal/image`／`hal/flash` | ECC、FCL copy extent、Flash geometry及受限呼叫鏈 |
+| 使用者流程 | `custom_func.c` | source registration、連結入口及初始化順序 |
 
-Boot→App 交接會先遮罩中斷、停止 Boot 周邊、更新 RAM cookie，再透過 assembly 入口設定 App 的 EBASE／INTBP。
-App 的一般 EIINT 依 App table 直接取得 handler；完整路徑與新增 IRQ 步驟見 [IRQ 編輯](app-development.html#rh850-app-editing)。
+在所選工程根目錄執行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1`，或CS+ Rebuild。
+每次只建置選定工程；App-only不需要Boot checkout，也不重建或改寫Boot產物。
 
-## 平台移植核對
+<a id="guide-porting-11"></a>
+
+### 6. 初次安裝與後續更新
+
+1. 依板端MCU、clock與工程契約準備Boot及App；保留燒錄器／CS+可辨識的帶位址檔。
+2. 安裝Boot使用`boot0000_FFFF.hex`；直接安裝App使用`flash_app_variable_CRC.hex`，分別核對燒錄範圍。
+3. 透過ISP更新App時，在Tool載入該App的`*_update.bin`；依discovery結果進入Boot再更新。
+4. 完成後核對END、App確認、live identity及獨立Log；報告由Tool保留。
+
+產物差異集中於 [建置與使用產物](app-development.html#rh850-build-products)，操作步驟見 [Tool入口](tool-guides.html)。
+
+<a id="guide-porting-12"></a>
+
+### 7. 啟動與更新流程
+
+Boot每次啟動檢查映像與向量，更新前另檢查Metadata／policy，完整回覆完成才執行後續交接。
+狀態與分支集中於 [Boot啟動與更新](can-device.html#rh850-boot-flow)，Flash資料累積見 [更新區塊與Flash交接](can-device.html#rh850-can-page-flow)。
+
+<a id="guide-porting-13"></a>
+
+### 8. App 變更與驗證
+
+#### 平台移植核對
+
+
 
 | 變動 | 一起核對的內容 |
 | --- | --- |
@@ -137,4 +298,4 @@ App 功能、版本與既定 IRQ mapping 的修改使用 App-only 建置。
 
 ---
 
-[上一主題：UART／Xmodem／I2C device 工程](serial-device.html) · [指南入口](index.html) · [下一主題：映像、Metadata 與 CAN 封包參考](reference.html)
+[上一主題：UART／Xmodem／I2C device 工程](serial-device.html) · [指南入口](index.html) · [下一主題：Flash、Metadata 與 CAN 封包參考](reference.html)

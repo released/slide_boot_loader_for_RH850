@@ -2,14 +2,41 @@
 
 <a id="article_top"></a>
 
-# 映像、Metadata 與 CAN 封包參考
+# Flash、Metadata 與 CAN 封包參考
 
 RH850 位址、256-byte Metadata 範例、8-byte control 與 raw data。
+
+<!-- BOOTLOADER_TOPICS_BEGIN -->
+## 本頁主題
+
+| 章節／規格 | 本頁 | 另一平台 |
+| --- | --- | --- |
+| 1. 適用角色與閱讀方式 | [閱讀](#guide-reference-1) | [RL78](../slide_boot_loader_for_RL78/reference.html#guide-reference-1) |
+| Flash絕對位址、BIN offset與metadata offset | [閱讀](#guide-reference-2) | [RL78](../slide_boot_loader_for_RL78/reference.html#guide-reference-2) |
+| CRC 類型、計算範圍與用途 | [閱讀](#guide-reference-3) | [RL78](../slide_boot_loader_for_RL78/reference.html#guide-reference-3) |
+| CRC 的連續 Flash 位址 | [閱讀](#guide-reference-4) | [RL78](../slide_boot_loader_for_RL78/reference.html#guide-reference-4) |
+| 2. 每個metadata byte：address、範例值與來源 | [閱讀](#guide-reference-5) | [RL78](../slide_boot_loader_for_RL78/reference.html#guide-reference-5) |
+| 逐 byte 實體位址與範例值 | [閱讀](#guide-reference-6) | [RL78](../slide_boot_loader_for_RL78/reference.html#guide-reference-6) |
+| 欄位的語意與修改限制 | [閱讀](#guide-reference-7) | [RL78](../slide_boot_loader_for_RL78/reference.html#guide-reference-7) |
+| 3. 範例程式、產生端與修改位置 | [閱讀](#guide-reference-8) | [RL78](../slide_boot_loader_for_RL78/reference.html#guide-reference-8) |
+| C90示例：讀metadata而不依賴struct padding | [閱讀](#guide-reference-9) | [RL78](../slide_boot_loader_for_RL78/reference.html#guide-reference-9) |
+| 4. CAN payload逐byte格式 | [閱讀](#guide-reference-10) | [RL78](../slide_boot_loader_for_RL78/reference.html#guide-reference-10) |
+| 與Custom Transfer／Bridge Self Test的區別 | [閱讀](#guide-reference-11) | [RL78](../slide_boot_loader_for_RL78/reference.html#guide-reference-11) |
+| 5. 改成自己的專案：修改順序與驗證 | [閱讀](#guide-reference-12) | [RL78](../slide_boot_loader_for_RL78/reference.html#guide-reference-12) |
+<!-- BOOTLOADER_TOPICS_END -->
 
 <!-- RH850_REFERENCE_CHAPTER_BEGIN -->
 <a id="rh850-image-reference"></a>
 
-## 映像與位址基準
+<a id="guide-reference-1"></a>
+
+## 1. 適用角色與閱讀方式
+
+<a id="guide-reference-2"></a>
+
+### Flash絕對位址、BIN offset與metadata offset
+
+#### 映像與位址基準
 
 | 資料 | 基準與換算 | 產生／使用端 |
 | --- | --- | --- |
@@ -23,9 +50,38 @@ RH850 位址、256-byte Metadata 範例、8-byte control 與 raw data。
 Metadata 長度固定 256 bytes，由 128-byte core 與 128-byte FF reserved 組成。
 CRC32/ISO-HDLC 涵蓋 App BIN 除末端4 bytes 以外的全部資料，包含 Metadata 與向量區。
 
+<a id="rh850-crc-reference"></a>
+
+<a id="guide-reference-3"></a>
+
+### CRC 類型、計算範圍與用途
+
+| 類型 | 範圍／位置 | 工程用途 |
+| --- | --- | --- |
+| 映像CRC32/ISO-HDLC | BIN[0..image_size-5]；trailer為最後4bytes、LE32 | 封裝、Boot END、reset啟動檢查 |
+| CAN更新block檢查 | protocol staging與COMMIT所宣告的block完整性 | 完整block才可累積Flash page；不能取代完整映像CRC |
+| Custom Transfer CRC8 | 8-byte base frame或64-byte echo的末byte | 診斷協定完整性，不寫App Flash |
+| 串列framed CRC32 | header＋payload後的4bytes | UART／I2C／Xmodem控制封包 |
+| Xmodem CRC16 | 每128-byte payload，trailer為high／low | block傳輸；EOT仍核對完整映像CRC32 |
+
+CRC32使用reflected polynomialEDB88320h、initial／final XOR FFFFFFFFh；`123456789`=CBF43926h。
+
+<a id="guide-reference-4"></a>
+
+### CRC 的連續 Flash 位址
+
+RH850 reader以32-bit byte address分段讀入RAM，再交給`Device_Crc32Update()`。
+例：960KiB BIN涵蓋10000h..FFFFFh，CRC輸入止於FFFFBh，trailer在FFFFCh..FFFFFh。
+`Device_ImageValidate()`透過read callback讀取Code Flash；可能空白／更新中斷的資料經RAM reader處理ECC控制並恢復狀態。
+完整mapping與RAM執行條件見 [Flash與映像配置](porting.html#rh850-flash-layout)。
+
 <a id="rh850-metadata-bytes"></a>
 
-## Metadata 欄位與逐 byte 範例
+<a id="guide-reference-5"></a>
+
+## 2. 每個metadata byte：address、範例值與來源
+
+#### Metadata 欄位與逐 byte 範例
 
 欄位的含義由本機 `image_metadata_config.h`、`can_boot_config.h` 與 `hal/image/image_metadata_profile.c` 定義。
 App version／build／policy 使用 `app_image_config.h`，實際 image size 與 CRC 由封裝器產生。
@@ -34,6 +90,8 @@ App version／build／policy 使用 `app_image_config.h`，實際 image size 與
 <!-- RH850_METADATA_BYTES_BEGIN -->
 範例來源：<code>Sample_Project_RH850_S1_Boot_loader_CAN_FD_app_update.bin</code>，29860 bytes；SHA256＝<code>BBABB12466EB8BFA243EB96D73CC26BCDE6CB3F14450B93D05FC6955A8A62979</code>。
 封裝 BIN 的 CRC32 與 metadata size 已相互核對；此範例值不是可直接沿用的 MCU／Flash 預設。
+
+### MCU CAN device：Metadata 欄位與產生端
 
 | Metadata offset | bytes | 欄位 | 編輯／產生來源 |
 | --- | --- | --- | --- |
@@ -74,7 +132,12 @@ App version／build／policy 使用 `app_image_config.h`，實際 image size 與
 | 0x78..0x7F | 8 | reserved_zero | image_metadata_config.h + hal/image/image_metadata_profile.c |
 | 0x80..0xFF | 128 | reserved_FF | image_metadata_config.h + hal/image/image_metadata_profile.c |
 
-### Metadata 0x00..0x1F
+<a id="guide-reference-6"></a>
+
+### 逐 byte 實體位址與範例值
+
+
+#### Metadata 0x00..0x1F
 
 | offset | Flash address | byte | 欄位內 byte |
 | --- | --- | --- | --- |
@@ -111,7 +174,7 @@ App version／build／policy 使用 `app_image_config.h`，實際 image size 與
 | 0x1E | 0x0001011E | 01 | app_start[2] |
 | 0x1F | 0x0001011F | 00 | app_start[3] |
 
-### Metadata 0x20..0x3F
+#### Metadata 0x20..0x3F
 
 | offset | Flash address | byte | 欄位內 byte |
 | --- | --- | --- | --- |
@@ -148,7 +211,7 @@ App version／build／policy 使用 `app_image_config.h`，實際 image size 與
 | 0x3E | 0x0001013E | 00 | response_id[2] |
 | 0x3F | 0x0001013F | 00 | response_id[3] |
 
-### Metadata 0x40..0x5F
+#### Metadata 0x40..0x5F
 
 | offset | Flash address | byte | 欄位內 byte |
 | --- | --- | --- | --- |
@@ -185,7 +248,7 @@ App version／build／policy 使用 `app_image_config.h`，實際 image size 與
 | 0x5E | 0x0001015E | 00 | minimum_size[2] |
 | 0x5F | 0x0001015F | 00 | minimum_size[3] |
 
-### Metadata 0x60..0x7F
+#### Metadata 0x60..0x7F
 
 | offset | Flash address | byte | 欄位內 byte |
 | --- | --- | --- | --- |
@@ -222,7 +285,7 @@ App version／build／policy 使用 `app_image_config.h`，實際 image size 與
 | 0x7E | 0x0001017E | 00 | reserved_zero[6] |
 | 0x7F | 0x0001017F | 00 | reserved_zero[7] |
 
-### Metadata 0x80..0x9F
+#### Metadata 0x80..0x9F
 
 | offset | Flash address | byte | 欄位內 byte |
 | --- | --- | --- | --- |
@@ -259,7 +322,7 @@ App version／build／policy 使用 `app_image_config.h`，實際 image size 與
 | 0x9E | 0x0001019E | FF | reserved_FF[30] |
 | 0x9F | 0x0001019F | FF | reserved_FF[31] |
 
-### Metadata 0xA0..0xBF
+#### Metadata 0xA0..0xBF
 
 | offset | Flash address | byte | 欄位內 byte |
 | --- | --- | --- | --- |
@@ -296,7 +359,7 @@ App version／build／policy 使用 `app_image_config.h`，實際 image size 與
 | 0xBE | 0x000101BE | FF | reserved_FF[62] |
 | 0xBF | 0x000101BF | FF | reserved_FF[63] |
 
-### Metadata 0xC0..0xDF
+#### Metadata 0xC0..0xDF
 
 | offset | Flash address | byte | 欄位內 byte |
 | --- | --- | --- | --- |
@@ -333,7 +396,7 @@ App version／build／policy 使用 `app_image_config.h`，實際 image size 與
 | 0xDE | 0x000101DE | FF | reserved_FF[94] |
 | 0xDF | 0x000101DF | FF | reserved_FF[95] |
 
-### Metadata 0xE0..0xFF
+#### Metadata 0xE0..0xFF
 
 | offset | Flash address | byte | 欄位內 byte |
 | --- | --- | --- | --- |
@@ -371,14 +434,85 @@ App version／build／policy 使用 `app_image_config.h`，實際 image size 與
 | 0xFF | 0x000101FF | FF | reserved_FF[127] |
 <!-- RH850_METADATA_BYTES_END -->
 
+<a id="guide-reference-7"></a>
+
+### 本表範例BIN與CRC位置
+
+下表的生成區塊標示實際BIN檔名、bytes、SHA256及Metadata值。
+完整映像的CRC位置為`App start + image_size - 4`，由封裝器及reader以相同基準核對。
+
+### 欄位的語意與修改限制
+
+Version／build／policy由App發行header修改；target、layout、IRQ ABI與允許介面由配對工程契約決定。
+256-byte長度、reserved填值與實際size／CRC均由格式／封裝檢查核對；單改BIN欄位不會完成平台移植。
+
+<a id="guide-reference-8"></a>
+
+## 3. 範例程式、產生端與修改位置
+
+| 內容 | 可編輯來源 | 生成／解析 |
+| --- | --- | --- |
+| 發行identity | `app_image_config.h` | `generated_projection/app_identity.h`及實際Metadata |
+| MCU／Flash／IRQ ABI | `image_metadata_config.h` | `hal/image/image_metadata_profile.c` |
+| ISP配置 | `can_boot_config.h`或`isp_transport_config.h` | 介面profile與實際driver設定 |
+| IRQ | `app_irq_handlers.h` | `generated_projection/device_vectors.c` |
+| size／CRC | linker輸出 | `tools/device_build.ps1`／實際update.bin |
+| 解析／完整驗證 | `hal/image/image_metadata.c`／`device_image.c` | 獨立C90 parser、reader、CRC及vector gates |
+
+<a id="guide-reference-9"></a>
+
+### RH850 C常數與實際byte的關係
+
+| 宣告／欄位 | little-endian bytes | 來源 |
+| --- | --- | --- |
+| CAN加NUL magic004E4143h | 43 41 4E 00 | 中性image格式及profile |
+| version00010203h | 03 02 01 00 | App發行header |
+| target8501h（16bits） | 01 85 | MCU工程契約 |
+| R8V1 IRQ ABI31563852h | 52 38 56 31 | image配置與向量驗證器 |
+
+本工程由C profile與封裝器形成實際bytes；不將C struct的padding當作格式定義。
+整數欄位逐byte／LE32讀取，完整欄位與每個byte以本頁的來源表核對。
+
+### C90示例：讀metadata而不依賴struct padding
+
+```c
+#include "device_image.h"
+
+unsigned char ReadAppVersion(device_read_fn read,
+    unsigned long metadata_address, unsigned long *version)
+{
+    unsigned char bytes[4];
+
+    if (read == 0 || version == 0)
+    {
+        return 0U;
+    }
+    if (!read(metadata_address + 0x10UL, bytes, 4U))
+    {
+        return 0U;
+    }
+    *version = Device_Read32(bytes);
+    return 1U;
+}
+```
+
+此工程傳入metadata_address=10100h；更換mapping時由新的工程profile提供基準。
+read使用已驗證的RAM reader adapter，不直接以packed struct存取可能有ECC條件的Code Flash。
+
 <a id="rh850-can-frames"></a>
 
-## CAN 控制幀與資料幀
+<a id="guide-reference-10"></a>
+
+## 4. CAN payload逐byte格式
+
+### CAN 控制幀與資料幀
 
 來源為各 CAN Boot 工程的 `can_boot_config.h` 與 `hal/isp/boot_engine.c`。
 控制 request 使用 standard ID `0x700`，reply 使用 `0x701`；Custom Transfer 使用獨立的 `0x710`／`0x711`。
 
-### 8-byte 控制 request 範例
+### CAN Upgrade：control request（ID0x700）
+
+#### 8-byte 控制 request 範例
 
 | byte | Metadata DATA `0x08` | BEGIN `0x0B` | COMMIT `0x0C` |
 | --- | --- | --- | --- |
@@ -395,7 +529,23 @@ Metadata offset 依4 bytes 遞增，完成256 bytes staging 後由 SEAL `0x09` �
 BEGIN 建立64-byte 區塊的 offset／CRC；raw data 隨後送出，COMMIT 核對並接受該區塊。
 各 command 另有自己的長度與狀態限制，表中的 byte 用途只適用所列 command。
 
-### 8-byte reply
+### Raw image frame（ID0x720..0x727）
+
+#### 64-byte 區塊的 raw data
+
+| 模式 | ID／DLC／長度 | 每個 byte 的用途 |
+| --- | --- | --- |
+| Classical CAN | `0x720 + segment`；DLC8／8 bytes | segment＝0..7；byte i 對應 block byte `segment × 8 + i` |
+| CAN FD | `0x720`；DLC15／64 bytes，FDF＋BRS | byte i 對應 block byte i，i＝0..63 |
+
+raw data 的64 bytes 全部是 App 映像資料，command／offset／block CRC 放在先前的 BEGIN 與後續 COMMIT。
+最後不足64 bytes 時，超出有效 image size 的 wire bytes 為 FF；區塊 CRC 與最終映像 CRC 使用各自定義的有效範圍。
+實體 Flash 仍以256-byte page 寫入，流程見 [CAN 區塊與 Flash page](#rh850-can-page-flow)。
+<a id="guide-reference-11"></a>
+
+### Response（ID0x701）
+
+#### 8-byte reply
 
 | byte | 格式 | 意義 |
 | --- | --- | --- |
@@ -411,47 +561,30 @@ BEGIN 建立64-byte 區塊的 offset／CRC；raw data 隨後送出，COMMIT 核�
 detail／value 的含義依 command 決定。BEGIN 與 raw data 不回覆 ACK，COMMIT 回覆 session 接受結果。
 App 初始化完成後的 ready／identity 確認與 Boot END CRC 分開執行。
 
-### 64-byte 區塊的 raw data
+### 與Custom Transfer／Bridge Self Test的區別
 
-| 模式 | ID／DLC／長度 | 每個 byte 的用途 |
+| Workflow | request／response | 處理對象 |
 | --- | --- | --- |
-| Classical CAN | `0x720 + segment`；DLC8／8 bytes | segment＝0..7；byte i 對應 block byte `segment × 8 + i` |
-| CAN FD | `0x720`；DLC15／64 bytes，FDF＋BRS | byte i 對應 block byte i，i＝0..63 |
+| CAN Upgrade | 700h／701h，raw720h起 | Device Boot的Metadata、App Flash及完整映像驗證 |
+| Custom Transfer | 710h／711h，A5／5A marker、version1、CRC8 | Device獨立Transfer程式；PING／ECHO／pattern／統計 |
+| Bridge Self Test | Tool依Host能力與設定執行 | Host側通訊資源／診斷；不代表Device已進入Boot |
 
-raw data 的64 bytes 全部是 App 映像資料，command／offset／block CRC 放在先前的 BEGIN 與後續 COMMIT。
-最後不足64 bytes 時，超出有效 image size 的 wire bytes 為 FF；區塊 CRC 與最終映像 CRC 使用各自定義的有效範圍。
-實體 Flash 仍以256-byte page 寫入，流程見 [CAN 區塊與 Flash page](#rh850-can-page-flow)。
+同一bus的ID、模式、DLC與payload需依選定workflow核對；詳細操作集中於 [Tool指南](tool-guides.html)。
 
-<a id="rh850-can-page-flow"></a>
+<a id="guide-reference-12"></a>
 
-### CAN 區塊與 Flash page
+## 5. 改成自己的專案：修改順序與驗證
 
-Tool 先完成 BIN／live 契約比對、metadata staging／seal 與 START，再依序傳送 BEGIN／raw data／COMMIT。
-每個 COMMIT 的處理如下。
+| 順序 | 修改與核對 |
+| --- | --- |
+| 1 | MCU／clock／pins／Flash geometry、FCL支援與RAM／ECC配置 |
+| 2 | Boot／App的entry、Metadata、EBASE／INTBP、code與CRC範圍 |
+| 3 | 中性image profile與各自單一ISP介面的實際driver／宣告 |
+| 4 | App發行header、ISR、EIINT index、來源註冊及SC projection |
+| 5 | pre／post-build實際映像檢查、256-byte值／向量／size／CRC／HTML摘要 |
+| 6 | 使用相容Boot進行更新，保存Tool報告及獨立Log，依硬體條件驗證IRQ／reset／中斷復原 |
 
-```mermaid
-flowchart TD
-    C{"區塊完整、CRC及metadata一致？"}
-    C -- 否 --> X["回覆錯誤，不接受該區塊"]
-    C -- 是 --> D{"最後一塊的相同重送？"}
-    D -- 是 --> ACK["ACK：session已接受資料"]
-    D -- 否 --> E["erase區首塊：擦除32KiB"]
-    E --> P["64-byte block合併至RAM page"]
-    P --> W{"page滿或image結尾？"}
-    W -- 否 --> ACK
-    W -- 是 --> F["一次寫入256 bytes；尾端補FF"]
-    F --> ACK
-```
-
-CAN Classical 的 raw ID 為 `0x720..0x727`，每幀最多8 bytes；CAN FD 使用 `0x720`／DLC15／64 bytes。
-控制幀及 byte 格式見 [CAN frame reference](reference.html#rh850-can-frames)。
-每次 COMMIT 接受最多64 bytes；ACK 表示該 session 已接受區塊，未滿256-byte page 的資料仍在 RAM。
-最後一塊重送由 RAM cache 核對，不再次擦寫。
-斷電會遺失未寫滿的 RAM page；重新上電依完整映像驗證決定留在 Boot 或啟動有效 App，更新重新從起點進行。
-
-擦寫由 FCL internal-handler mode 的 RAM 執行鏈完成，期間 IRQ 遮罩。
-可能空白或中斷的 Flash 資料由 RAM reader 暫時關閉 VCI data ECC 後讀取並恢復設定；PE instruction ECC 不變。
-這是 raw data／CRC 檢查，不是硬體 blank check 或 ECC 狀態驗證。
+各項修改的完整步驟見 [App開發](app-development.html#rh850-app-editing) 及 [移植與Flash](porting.html)。
 <!-- RH850_REFERENCE_CHAPTER_END -->
 
 ---

@@ -6,6 +6,23 @@
 
 EVM、CAN port、接收資源、更新 owner 與 Boot 啟動流程。
 
+<!-- BOOTLOADER_TOPICS_BEGIN -->
+## 本頁主題
+
+| 章節／規格 | 本頁 | 另一平台 |
+| --- | --- | --- |
+| 工程與用途 | [閱讀](#guide-can-device-1) | [RL78](../slide_boot_loader_for_RL78/can-device.html#guide-can-device-1) |
+| 板端與更新設定 | [閱讀](#guide-can-device-2) | [RL78](../slide_boot_loader_for_RL78/can-device.html#guide-can-device-2) |
+| Flash 配置 | [閱讀](#guide-can-device-3) | [RL78](../slide_boot_loader_for_RL78/can-device.html#guide-can-device-3) |
+| Boot 啟動與更新 | [閱讀](#guide-can-device-4) | [RL78](../slide_boot_loader_for_RL78/can-device.html#f13-boot-decision) |
+| MCU CAN FD device 工程設定 | [閱讀](#guide-can-device-5) | [RL78](../slide_boot_loader_for_RL78/can-device.html#guide-can-device-5) |
+| 設定來源 | [閱讀](#guide-can-device-6) | [RL78](../slide_boot_loader_for_RL78/can-device.html#guide-can-device-6) |
+| 接收與中斷 | [閱讀](#guide-can-device-7) | [RL78](../slide_boot_loader_for_RL78/can-device.html#guide-can-device-7) |
+| 更新區塊與 Flash 交接 | [閱讀](#guide-can-device-8) | [RL78](../slide_boot_loader_for_RL78/can-device.html#guide-can-device-8) |
+| 工程與建置 | [閱讀](#guide-can-device-9) | [RL78](../slide_boot_loader_for_RL78/can-device.html#guide-can-device-9) |
+| 驗證項目 | [閱讀](#guide-can-device-10) | [RL78](../slide_boot_loader_for_RL78/can-device.html#guide-can-device-10) |
+<!-- BOOTLOADER_TOPICS_END -->
+
 <!-- RH850_DEVICE_BEGIN -->
 <a id="rh850-can-device"></a>
 
@@ -13,6 +30,8 @@ EVM、CAN port、接收資源、更新 owner 與 Boot 啟動流程。
 
 R7F701684 EVM 使用獨立的 Classical CAN 與 CAN FD 工程。
 App 發行設定與 IRQ mapping 由 C header 編輯，PowerShell 在 CS+ 建置前產生 identity／向量表，建置後核對實際映像並封裝 BIN。
+
+<a id="guide-can-device-1"></a>
 
 ### 工程與用途
 
@@ -25,10 +44,12 @@ App 發行設定與 IRQ mapping 由 C header 編輯，PowerShell 在 CS+ 建置�
 Boot、App 與 Transfer 各自包含 CAN adapter、設定與建置工具，可獨立編譯。
 來源分工與使用者入口見 [工程目錄與程式入口](porting.html#rh850-project-entry)。
 
-Transfer 的共通通訊驗證與操作見 [Custom Transfer](https://released.github.io/slide_isp_tool_for_RL78/#custom-transfer)。
-一般更新與報告操作見 [Tool 操作](https://released.github.io/slide_isp_tool_for_RL78/#tool-operation)。
+Transfer 的共通通訊驗證與操作見 [Custom Transfer](https://released.github.io/slide_simple_renesas_isp_tool/#custom-transfer)。
+一般更新與報告操作見 [Tool 操作](https://released.github.io/slide_simple_renesas_isp_tool/#tool-operation)。
 
-### 板端與時脈
+<a id="guide-can-device-2"></a>
+
+### 板端與更新設定
 
 | 項目 | 本工程設定 | 依據／程式位置 |
 | --- | --- | --- |
@@ -47,7 +68,7 @@ Transfer 的共通通訊驗證與操作見 [Custom Transfer](https://released.gi
 
 <a id="rh850-evm-can-ports"></a>
 
-### EVM 連接、port 選擇與 CAN RAM
+#### EVM 連接、port 選擇與 CAN RAM
 
 依據為 [BLDC Starter Kit V2 手冊](https://www.renesas.com/en/document/mat/rh850f1km-s1-bldc-starter-kit-v2-users-manual) §4.1.8.3、Tables27／28，
 以及 [Starter Kit V3 手冊](https://www.renesas.com/en/document/mat/rh850f1km-s1-starter-kit-v3-user-manual-hardware) §4.2.7.3、Tables24／25。
@@ -107,7 +128,11 @@ Queue／drop／error observations 依 port 記錄；硬體 lost indication 不�
 
 <a id="rh850-can-service"></a>
 
-### CAN service、回覆完成與錯誤處理
+<a id="guide-can-device-7"></a>
+
+### 接收與中斷
+
+#### CAN service、回覆完成與錯誤處理
 
 Classical／FD 的 Boot、App 與 Transfer 共用 MultiCHv4 的 service／driver 核心。
 硬體設定與協定 adapter 則由各工程持有，沿用本頁的 EVM、mode、ID、速率及 IRQ 配置。
@@ -156,7 +181,7 @@ Boot 更新工作區的規則集中於[多 port 更新工作區](#rh850-update-p
 
 <a id="rh850-update-port-owner"></a>
 
-### 多 port 更新工作區
+#### 多 port 更新工作區
 
 Transfer 的 protocol context、統計與重送快取依 port 獨立。
 Boot 的 App Flash 與 metadata staging 則只有一份，採單一更新 owner：
@@ -184,7 +209,40 @@ ABORT 清除 RAM session，不還原已擦寫的 App。
 個別測試時將 host 接到 CAN1，完成 Transfer 或更新；再改接 CAN4 重做相同流程。
 Tool 的 Bridge port 選單選擇的是 **host 的 port**，device port 由實際接線及上述編譯設定決定。
 
-### 更新與啟動流程
+<a id="guide-can-device-3"></a>
+
+### Flash 配置
+
+Boot64KiB、App起點10000h及RAM monitor／FCL配置集中於 [Flash與映像配置](porting.html#rh850-flash-layout)。
+App、Transfer與燒錄器檔案的範圍依各自的封裝產物核對。
+
+<a id="guide-can-device-9"></a>
+
+### 工程與建置
+
+Boot／App／Transfer均在自己的根目錄使用`build.ps1`或CS+ Rebuild。
+完整產物表見 [建置與使用產物](app-development.html#rh850-build-products)。
+
+<a id="guide-can-device-10"></a>
+
+### 驗證項目
+
+| 項目 | 本工程的核對內容 |
+| --- | --- |
+| Clock／pin | R7F701684、16MHz、CPU120／CAN40MHz、CAN1／CAN4路由 |
+| 接收 | 共用RX IRQ、各port獨立FIFO與CPU queue、overflow／drop observations |
+| 回覆 | source port、TX tag／DONE、完整回覆後才允許reset |
+| 更新契約 | Metadata／target／mode／rate／layout／policy／CRC／vectors |
+| Flash | FCL RAM鏈、38個blocks、256-byte page、Boot範圍保護 |
+| App | EBASE／完整INTBP、APP_READY、live identity與獨立counter |
+
+<a id="rh850-boot-flow"></a>
+
+<a id="guide-can-device-4"></a>
+
+### Boot 啟動與更新
+
+#### 更新與啟動流程
 
 App 有效性包含 metadata、CRC、entry、exception 及512-entry IRQ table。
 更新後由 Tool 的 APP_READY 及 live identity／version／build／size 比對確認 App；100% 本身不是 App 已執行的證據。
@@ -209,14 +267,64 @@ flowchart TD
     N -- 是，成功ACK後reset --> R
 ```
 
-### 速率、ID 與移植
+<a id="guide-can-device-5"></a>
 
-更改 CAN nominal／data rate 時，分別修改搭配 Boot／App 的 `hal/can/can_config.c` timing／profile 與 `can_boot_config.h` masks，再重建 Boot、App 及其 BIN。
-Tool 的速率設定只改 MCU CAN host，不改 device 的暫存器。
-500K 的 nominal mask 是 `0x04`；250K 為 `0x02`、1M 為 `0x10`，對應 Tool preset index 2、1、4。
-mask 描述實際編譯的 timing，不能單獨改 mask 代表硬體速率已改變。
-FD data mask `0x02` 表示2M，並檢查 BRS 與 DLC／length。
-本頁範例採500K／FD data2M；其他 timing 依40MHz communication clock計算並核對實板條件。
+## MCU CAN FD device 工程設定
+
+<a id="guide-can-device-6"></a>
+
+### 設定來源
+
+| 項目 | FD工程設定 | 修改來源 |
+| --- | --- | --- |
+| Mode／BRS | FD+BRS，control8bytes／raw64bytes | FD工程`RH850_CAN_FD`、`can_boot_config.h`與adapter |
+| Clock／timing | CAN40MHz，nominal500K／data2M | `hal/can/can_config.c`及`rs_canfd.h`timing preset |
+| IDs | control700h／reply701h，raw720h | CAN設定header與各port exact filters |
+| RX | 每個啟用port各有16-depth FIFO及CPU queue | `can_port_config.h`與CAN service |
+| IRQ | 共用RX EIINT23；tick84 | SC／工程table與ISR |
+| 映像 | format6、256-byte Metadata、64KiB Boot、R8V1 IRQ ABI | 中性image配置與實際post-build guards |
+
+### Flash與建置
+
+FD沿用本工程的256-byte Flash page與FCL RAM鏈；完整mapping、產物與建置命令集中於 [移植與Flash](porting.html) 及 [App建置](app-development.html#rh850-build-products)。
+
+<!-- RH850_PAGE_BEGIN -->
+<a id="rh850-can-page-flow"></a>
+
+<a id="guide-can-device-8"></a>
+
+### 更新區塊與 Flash 交接
+
+#### CAN 區塊與 Flash page
+
+Tool 先完成 BIN／live 契約比對、metadata staging／seal 與 START，再依序傳送 BEGIN／raw data／COMMIT。
+每個 COMMIT 的處理如下。
+
+```mermaid
+flowchart TD
+    C{"區塊完整、CRC及metadata一致？"}
+    C -- 否 --> X["回覆錯誤，不接受該區塊"]
+    C -- 是 --> D{"最後一塊的相同重送？"}
+    D -- 是 --> ACK["ACK：session已接受資料"]
+    D -- 否 --> E["erase區首塊：擦除32KiB"]
+    E --> P["64-byte block合併至RAM page"]
+    P --> W{"page滿或image結尾？"}
+    W -- 否 --> ACK
+    W -- 是 --> F["一次寫入256 bytes；尾端補FF"]
+    F --> ACK
+```
+
+CAN Classical 的 raw ID 為 `0x720..0x727`，每幀最多8 bytes；CAN FD 使用 `0x720`／DLC15／64 bytes。
+控制幀及 byte 格式見 [CAN frame reference](reference.html#rh850-can-frames)。
+每次 COMMIT 接受最多64 bytes；ACK 表示該 session 已接受區塊，未滿256-byte page 的資料仍在 RAM。
+最後一塊重送由 RAM cache 核對，不再次擦寫。
+斷電會遺失未寫滿的 RAM page；重新上電依完整映像驗證決定留在 Boot 或啟動有效 App，更新重新從起點進行。
+
+擦寫由 FCL internal-handler mode 的 RAM 執行鏈完成，期間 IRQ 遮罩。
+可能空白或中斷的 Flash 資料由 RAM reader 暫時關閉 VCI data ECC 後讀取並恢復設定；PE instruction ECC 不變。
+這是 raw data／CRC 檢查，不是硬體 blank check 或 ECC 狀態驗證。
+
+<!-- RH850_PAGE_END -->
 <!-- RH850_DEVICE_END -->
 
 ---
