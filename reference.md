@@ -34,6 +34,22 @@ RH850 位址、256-byte Metadata 範例、8-byte control 與 raw data。
 
 <a id="guide-reference-2"></a>
 
+#### 欄位查閱索引
+
+| 想核對的內容 | Metadata offset | 修改或產生來源 |
+| --- | --- | --- |
+| App 版本／build | `0x10..0x17` | `app_image_config.h` |
+| 實際大小／Flash配置 | `0x18..0x2F`、`0x5C..0x5F` | `image_metadata_config.h`、linker及post-build；實際大小由封裝產生 |
+| 通訊模式、速度與路由 | `0x0E..0x0F`、`0x30..0x3F`、`0x70..0x73` | 通訊header、driver及metadata profile；串列解讀見各介面章節 |
+| 角色、介面、IRQ ABI及最低Boot | `0x60..0x6F` | 映像契約及profile；與live Boot核對 |
+| 版本政策 | `0x74..0x77` | `APP_IMAGE_VERSION_CONTROL`；依目前有效App決定一般更新政策 |
+
+**Metadata offset** 從metadata第一個byte起算；**BIN offset** 從整份App映像起算；**Flash address** 是MCU絕對位址。
+
+App映像起點包含向量／entry與metadata，與C程式碼起點不同；image size是本份BIN長度，capacity是允許上限。
+
+下方保留完整256-byte對照與來源表，可依上述offset定位欄位。
+
 ### Flash絕對位址、BIN offset與metadata offset
 
 #### 映像與位址基準

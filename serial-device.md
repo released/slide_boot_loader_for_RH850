@@ -2,9 +2,9 @@
 
 <a id="article_top"></a>
 
-# UART／Xmodem／I2C device 工程
+# 串列 ISP 共用工程與協定契約
 
-獨立串列工程、資料／Log 介面與 IRQ／回覆完成邊界。
+平台配置、C header、建置、Metadata、SC 與共用 Frame／命令／INFO／Status。
 
 <!-- BOOTLOADER_TOPICS_BEGIN -->
 ## 本頁主題
@@ -16,9 +16,6 @@
 | Metadata offset與協定配置 | [閱讀](#guide-serial-device-3) | [RL78](../slide_boot_loader_for_RL78/serial-device.html#guide-serial-device-3) |
 | SC設定與重新產生 | [閱讀](#guide-serial-device-4) | [RL78](../slide_boot_loader_for_RL78/serial-device.html#guide-serial-device-4) |
 | Framed control與INFO | [閱讀](#guide-serial-device-5) | [RL78](../slide_boot_loader_for_RL78/serial-device.html#guide-serial-device-5) |
-| UART診斷格式 | [閱讀](#guide-serial-device-6) | [RL78](../slide_boot_loader_for_RL78/serial-device.html#guide-serial-device-6) |
-| I2C mailbox | [閱讀](#guide-serial-device-7) | [RL78](../slide_boot_loader_for_RL78/serial-device.html#guide-serial-device-7) |
-| XMODEM-CRC128資料與診斷 | [閱讀](#guide-serial-device-8) | [RL78](../slide_boot_loader_for_RL78/serial-device.html#guide-serial-device-8) |
 | 驗證範圍 | [閱讀](#guide-serial-device-9) | [RL78](../slide_boot_loader_for_RL78/serial-device.html#guide-serial-device-9) |
 <!-- BOOTLOADER_TOPICS_END -->
 
@@ -92,7 +89,6 @@ UART建置以 `validate_serial_settings.ps1` 比對INFO／metadata baud與該工
 .\build.ps1
 ```
 
-預設只建置該工程。
 在所選工程根目錄執行 `build.ps1`，只建置該工程並執行本機 pre/post-build 檢查。
 使用已安裝的 CS+／CC-RH 與 PowerShell，不需額外的 Python 或 JSON 編輯環境。
 
@@ -103,7 +99,6 @@ UART建置以 `validate_serial_settings.ps1` 比對INFO／metadata baud與該工
 
 | 訊息 | 來源與處理 |
 | --- | --- |
-| `W0520550` 未使用狀態 | 角色專用變數依 Boot／App／Transfer 分開宣告；目前九工程不再出現這類警告 |
 | `W0561322` `.text` alignment mismatch | 專案輸入採4-byte 對齊，原廠預編譯 C library 採2-byte。最終 `.text` 仍以4-byte 連結；保留診斷，未修改 library 或關閉警告 |
 | `W0561017` CC-RH 授權 | 由目前編譯環境的授權狀態產生；依正式 CC-RH 授權配置處理。不是 firmware 功能警告，也不表示零警告建置 |
 
@@ -199,143 +194,93 @@ Frame最長110bytes；UART partial frame200ms逾時。相同sequence僅允許完
 | 24 STREAM_TEST | Xmodem App／Transfer宣告size1..65536與CRC32，轉到RAM診斷sink |
 | 25 DIAGNOSTICS | 宣告能力的UART／Xmodem App／Transfer，回覆唯讀24-byte UART快照 |
 
-INFO bytes0..7依序為contract、mode、transport、max-write、LE16target、valid、active。
-Bytes8..39為八個LE32：App start、capacity、Flash、Boot、erase、Boot version、Boot build、bus rate。
-Bytes40..51為installed version／build／size；52..55為policy／ready／LE16capabilities。
-Bytes56..71為part16，72..83為family12，84..87為IRQ ABI。
+以下 offset 以 INFO payload byte 0 為基準，多 byte 整數使用 little-endian。
+
+#### INFO payload：88 bytes
+
+| Offset | Bytes | 欄位與意義 |
+| --- | --- | --- |
+| 00 | 1 | contract：UART＝1、I2C＝2、Xmodem＝3 |
+| 01 | 1 | mode：Boot＝0、App＝1、Transfer＝2 |
+| 02 | 1 | transport：I2C＝02、UART／Xmodem＝04 |
+| 03 | 1 | max-write：UART／I2C＝64、Xmodem＝128 |
+| 04..05 | 2 | MCU target ID |
+| 06／07 | 各1 | installed App valid／更新 active |
+| 08..0B | 4 | App 起點 |
+| 0C..0F | 4 | App 完整 BIN 容量 |
+| 10..13 | 4 | Code Flash bytes |
+| 14..17 | 4 | Boot 保留 bytes |
+| 18..1B | 4 | Flash erase bytes |
+| 1C..1F／20..23 | 各4 | Boot version／build |
+| 24..27 | 4 | 編譯 bus rate：UART baud 或 I2C Hz |
+| 28..2B／2C..2F／30..33 | 各4 | installed App version／build／完整 BIN size |
+| 34／35 | 各1 | installed version-control policy／App ready |
+| 36..37 | 2 | capabilities bitmap |
+| 38..47 | 16 | part ASCII，NUL padding |
+| 48..53 | 12 | family ASCII，NUL padding |
+| 54..57 | 4 | IRQ ABI |
+
 Boot能力0F、App3C、Transfer10；Transfer不回報installed App／Boot分區與IRQ ABI，其對應值為零。
 提供UART診斷callback的App／Transfer另加能力bit6（0x40）；Boot不加此位元。
 
-<a id="serial-uart-diagnostics"></a>
+#### 更新命令 payload
 
-<a id="guide-serial-device-6"></a>
+| Command | Payload offset | Bytes | 意義 |
+| --- | --- | --- | --- |
+| 03 METADATA | 00..01 | 2 | Metadata offset，4-byte 對齊 |
+| 03 METADATA | 02.. | 4..64 | Metadata bytes；每段為4的倍數，依序涵蓋256 bytes |
+| 04 START／0E FORCE_START | 00..03 | 4 | 完整 BIN bytes，包含向量、Metadata、padding 與末端 CRC |
+| 04 START／0E FORCE_START | 04..07 | 4 | BIN 末端保存的 CRC32 值 |
+| 05 WRITE | 00..03 | 4 | 從 BIN 起點計算的 offset |
+| 05 WRITE | 04.. | 4..64 | UART／I2C 本次寫入 bytes；非末塊64 bytes，末塊使用實際剩餘長度 |
+| 06 END／07 ABORT／09 VERIFY | 無 | 0 | END 完整驗證、ABORT 清交易、VERIFY 唯讀驗證 |
+| 08 READ_METADATA | 00..01／02 | 2／1 | Metadata offset／要求 bytes；須為有效 installed App |
+| 24 STREAM_TEST | 00..03／04..07 | 各4 | Xmodem App／Transfer 的 useful size／CRC32 |
 
-### UART診斷格式
+成功回覆保留 request 的 sequence 與 command，type＝response、status＝00；有資料時依命令附 payload。
+可解碼但被拒絕的命令回覆錯誤 status 與空 payload。
 
-Command0x25不帶payload。只有INFO宣告bit6時才查詢；回覆是下表24bytes，多byte整數採little-endian。
-回覆使用相同sequence快取規則；重播同一request不重新讀取硬體。
+<a id="serial-status-codes"></a>
 
-| Offset | Bytes | 內容與範例 |
+#### Status 與錯誤處理
+
+| Status | 名稱 | 作用與核對方向 |
 | --- | --- | --- |
-| 00 | 1 | 格式1 |
-| 01 | 1 | 診斷種類1：Device UART |
-| 02..03 | 2 | 欄位mask0x000F，代表本表四組計數／queue欄位均提供 |
-| 04..07 | 4 | RX硬體錯誤次數 |
-| 08..0B | 4 | RX queue丟棄新資料次數 |
-| 0C..0F | 4 | 本機TX timeout次數 |
-| 10..13 | 4 | RX queue最高使用bytes |
-| 14..17 | 4 | 快照當下RX queue待處理bytes |
+| 00 | OK | 此命令已接受；更新完成仍需 END／EOT 驗證及 App 確認 |
+| 01 | BAD_COMMAND | 命令不屬於目前角色、協定或能力 |
+| 02 | BAD_SIZE | payload、offset 對齊或資料區塊長度不符合條件 |
+| 03 | BAD_STATE | 尚未完成 Metadata staging、未 START 或目前狀態不接受命令 |
+| 04 | BAD_SEQUENCE | 命令 sequence／重播內容或 Metadata／BIN offset 不符合順序 |
+| 05 | BAD_METADATA | MCU、介面、配置、size、IRQ 或映像契約不符合 |
+| 06 | BAD_VERSION | 有效 installed App 啟用版控，且 incoming version 較低 |
+| 07 | FLASH_ERROR | 實際擦除或寫入 API 失敗 |
+| 08 | CRC_ERROR | 完整映像或 VERIFY 檢查未通過 |
 
-RH850硬體錯誤／丟棄／TX計數飽和於0xFFFFFFFF，欄位序列化為32bits。
-最高量與待處理量是bytes，不是CAN frame數；reset後重新起算，不宣告跨重啟的累積量。
-快照只短暫保留並還原對應IRQ遮罩，不清空接收queue或重設周邊。
-`CLEAR_STATS`只清除協定計數，不清除此硬體診斷快照的累積量。
-Tool保留支援／未提供／讀取失敗的區別；畫面與報告的用途見[Device串列診斷](https://released.github.io/slide_simple_renesas_isp_tool/serial-isp.html#serial-device-diagnostics)。
+無法形成有效 frame 的資料不執行命令，也不保證有 status 回覆。
+Status 名稱與值來自工程內 `hal/isp/isp_protocol.h`，命令條件由 `isp_device.c` 核對。
 
-<a id="guide-serial-device-7"></a>
+#### 各介面 Bootloader 與協定格式
 
-### I2C mailbox
-
-I2C先寫一個STOP-delimited request，最長110bytes，再讀固定111bytes。
-Byte0為00 busy或A5 ready；ready後接完整framed reply，其餘FF。
-Tool只寫入一次request，再以唯讀poll等候；不因busy重送Flash request。
-
-RIIC ISR只處理有界Start／Receive／Next／NACK／STOP。
-Main loop才解析／執行Flash並發布不可變reply；ENTER／END需等完整ready read、最終NACK及STOP後才reset。
-Short read保留reply，mailbox有2秒lease；buffer overflow、busy時寫入及錯誤交易不授權更新。
-
-<a id="guide-serial-device-8"></a>
-
-### XMODEM-CRC128資料與診斷
-
-| Byte／控制 | 意義 |
-| --- | --- |
-| 0 | SOH01 |
-| 1／2 | 8-bit block number／ones complement，可wrap |
-| 3..130 | 128-byte payload，末塊unused positions填1A |
-| 131／132 | CRC16/XMODEM high／low byte，poly1021、init0 |
-| C／ACK／NAK／CAN | 43／06／15／18；兩個CAN取消 |
-| EOT04 | 完整映像或診斷CRC32 finalization，只送一次 |
-
-Metadata與START仍使用framed ISP control。Receiver以宣告size排除1A padding，CRC16保護各block；CRC32保護完整useful data。
-重送只允許相同block及完整相同128-byte內容；Tool最多三次相同block嘗試，不重送EOT。
-Partial block200ms逾時NAK，idle10秒取消；完成／錯誤／取消後恢復framed parser。
-本機無法送出C、ACK或NAK時，接收器取消串流並清除待重啟動作。
-Boot只有完整映像驗證通過且最終ACK已由本機傳送完成後才reset；對端是否收到仍由Tool後續確認。
-
-App／Transfer的0x24使用RAM CRC32 sink，沒有Flash erase／write／reset；Boot更新路徑才寫Flash並驗證映像。
-Tool的389-byte診斷涵蓋短末塊，模型亦涵蓋65536-byte block-number wrap、CRC錯誤、duplicate、cancel及timeout。
+| 介面 | Boot 流程 | Protocol Format |
+| --- | --- | --- |
+| UART | [接收、中斷與更新](uart-device.html#uart-boot-flow) | [UART frame 與診斷](uart-device.html#uart-protocol) |
+| I2C | [Slave mailbox 與更新](i2c-device.html#i2c-boot-flow) | [I2C request／reply window](i2c-device.html#i2c-protocol) |
+| Xmodem | [Control／raw block 與完成](xmodem-device.html#xmodem-boot-flow) | [XMODEM-CRC128](xmodem-device.html#xmodem-protocol) |
 <!-- RH850_SERIAL_WIRE_END -->
 
 <a id="rh850-serial-runtime"></a>
 
 #### UART／I2C 中斷與完成邊界
 
-UART RX IRQ 只放入512-slot RAM ring（511bytes 可用），滿時丟棄新資料並計數。
-Error IRQ 清除錯誤並計數；protocol、CRC、Flash 與 Log 都在 main loop。
-TX 在主迴圈有界等待最後一個字元傳完後，才執行 ENTER／END 後續動作。
+| 平台實作 | 中斷與資料處理 | 完成條件與說明 |
+| --- | --- | --- |
+| RLIN31 UART | RX IRQ 只放入512-slot RAM ring（511 bytes可用）；滿時丟棄新資料並計數。Error IRQ 清除並記錄錯誤 | 主迴圈處理 protocol／CRC／Flash／Log；TX 完整送完才執行 pending action。見[UART流程](uart-device.html#uart-boot-flow) |
+| RIIC1 I2C | Event IRQ 優先於 byte IRQ；STOP 與最後 RX 同時待處理時先收該 byte。NACK 保留至 STOP，期間遮罩 NACK IRQ | 完成計數扣除 DRT 預載；未完成 ready read 不 reset。見[I2C格式](i2c-device.html#i2c-protocol) |
+| Xmodem | 與資料 UART 共用接收 queue，framed／raw parser 分階段使用 | 最終 ACK 完整送完才可 reset；App／Transfer使用RAM sink。見[Xmodem流程](xmodem-device.html#xmodem-boot-flow) |
 
-RIIC RX／TX／Event ISR 只移動 mailbox bytes 與狀態。
-請求以 STOP 分界；回覆是111-byte read window，短讀保留回覆。
-Event IRQ 的優先序高於 byte IRQ，STOP 與末筆 RX 同時待處理時先收下該筆資料。
-NACK 保留到 STOP 後才清除，其間遮罩 NACK 中斷，不在 ISR 等待 STOP。
-回覆完成判斷扣除仍在 DRT 的預載資料；無法證明完整 read 時不允許重啟。
-
-```mermaid
-flowchart LR
-    subgraph RECEIVE["接收與命令處理"]
-        direction TB
-        RX["資料接收 IRQ"] --> QUEUE["UART ring / I2C mailbox"]
-        QUEUE --> MAIN["RuntimePoll / CRC / sequence"]
-        MAIN --> GATE["角色權限 / metadata / 版本 / 範圍"]
-        GATE --> EXEC["Boot: Flash page / END 檢查<br/>App 或 Transfer: INFO / 診斷"]
-    end
-    subgraph REPLY["回覆與後續動作"]
-        direction TB
-        SEND["傳送命令結果 / 錯誤狀態"] --> DONE{"完整回覆已送完?"}
-        DONE -->|否| WAIT["保留待完成動作<br/>主迴圈再次檢查"]
-        WAIT --> DONE
-        DONE -->|是| ACTION["僅執行已接受命令的後續動作"]
-    end
-    RECEIVE --> REPLY
-```
-
-ISR 不解析 ISP 命令、不呼叫 Flash，也不輸出 Log。
-App 的 ready 回覆須已觀察到系統 tick；獨立 Transfer 不宣告已安裝 App 或 Flash 分區。
-UART／Xmodem App與Transfer提供能力bit6／command0x25的接收錯誤、queue drop、TX timeout及queue快照；
-完整byte欄位集中於[串列診斷格式](#serial-uart-diagnostics)，Tool判讀亦沿用該文件連結的操作章節。
-
-#### Xmodem 串流完成
-
-Boot 使用串流寫入及完整映像檢查；App／Transfer 的 command24 只接收資料並核對 CRC32。
-128-byte block 的 CRC16、順序、重送與末塊填充由接收器核對。
-
-```mermaid
-flowchart LR
-    subgraph STREAM["串流與完整性"]
-        direction TB
-        START["接受 START 或診斷串流命令"] --> BLOCK["C / XMODEM-CRC128<br/>block CRC16 / 順序 / 精確重送"]
-        BLOCK --> MORE{"資料已收齊?"}
-        MORE -->|否| BLOCK
-        MORE -->|是| VALID{"EOT / 完整 CRC32 通過?"}
-        VALID -->|否| CANCEL["取消串流 / 不重啟"]
-        VALID -->|是| READY["可回覆最終 ACK"]
-    end
-    subgraph COMPLETE["最終回覆與交接"]
-        direction TB
-        ACK["傳送最終 ACK"] --> SENT{"傳送成功且完整送完?"}
-        SENT -->|否| HOLD["不執行待重啟動作"]
-        SENT -->|是| ROLE{"Boot 更新?"}
-        ROLE -->|是| RESET["重啟 / 再次驗證 / App"]
-        ROLE -->|否| FRAMED["回到診斷封包模式"]
-    end
-    STREAM -->|驗證成功| COMPLETE
-```
-
-最終 ACK 傳送失敗時不自動重啟，也不重複寫入來推定更新結果。
-Tool 的 ACK 接收結果與 device 完整傳送是不同觀察點；線路中斷仍需由重連及映像狀態確認。
-
-RIIC 暫存器與上述順序依 [RH850/F1KH、F1KM 硬體手冊](https://in.element14.com/wcsstore/ExtendedSitesCatalogAssetStore/cms/asset/pdf/common/renesas-automotive/rh850-users-manual.pdf) 第23章核對，特別是23.3.15、23.4、23.5.5。
+App 的 ready 回覆須已觀察到系統 tick；Transfer 不宣告已安裝 App 或 Flash 分區。
+串列診斷欄位集中於[UART診斷格式](uart-device.html#serial-uart-diagnostics)。
+RIIC 暫存器與交易順序依 [RH850/F1KH、F1KM 硬體手冊](https://in.element14.com/wcsstore/ExtendedSitesCatalogAssetStore/cms/asset/pdf/common/renesas-automotive/rh850-users-manual.pdf) 第23章核對，特別是23.3.15、23.4、23.5.5。
 
 <a id="guide-serial-device-9"></a>
 
@@ -357,4 +302,4 @@ RIIC 暫存器與上述順序依 [RH850/F1KH、F1KM 硬體手冊](https://in.ele
 
 ---
 
-[上一主題：App Metadata、IRQ 與更新耗時](app-development.html) · [指南入口](index.html) · [下一主題：Boot／App 移植與 Flash](porting.html)
+[上一主題：App Metadata、IRQ 與更新耗時](app-development.html) · [指南入口](index.html) · [下一主題：UART Bootloader 與協定格式](uart-device.html)

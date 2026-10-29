@@ -150,7 +150,7 @@ App 發行設定依既定工程契約修改；Boot 版本與 App 版本分開維
     X(84U, r_Config_OSTM0_interrupt)
 ```
 
-#### C0. Boot／App 中斷所有權與向量轉送
+#### C0. Boot／App 中斷入口與交接
 
 <a id="rh850-irq-entry"></a>
 
@@ -310,11 +310,60 @@ tiny_printf("log(timer)-" APP_RUNTIME_LOG_TAG ": %lu\r\n", counter++);
 tiny_printf("status=0x%08lX byte=0x%02X\r\n", status, (unsigned int)byte);
 ```
 
-這份精簡實作支援 `%s`、`%c`、`%u`、`%d`、`%x`、`%X`、`%%`、欄寬、補零與 `l` 整數修飾。
-`unsigned long` 使用 `%lu`／`%lX`；byte／short 搭配 `%u`／`%X` 時轉成 `unsigned int`。
-浮點、`ll`、precision 與 `*` 欄寬不在此實作的支援範圍。
+在專案內的 `retarget_config.h` 選擇格式器模式，修改後重新建置：
 
-`SendChar()` 是格式器使用的 UART0 字元輸出入口，每個字元保留有限等待上限。
+```c
+#define TINY_PRINTF_FULL 1 /* Full C99 format mode; use 0 for Current mode. */
+```
+
+| 模式 | 格式與行為 | 回傳值 |
+| --- | --- | --- |
+| `1`：Full，預設 | C99 格式、動態欄寬／precision、完整長度修飾、十進位及十六進位浮點；固定 C locale、nearest／ties-to-even 捨入 | 成功交給 UART 的字數；格式、字數溢位、字元轉換或 UART timeout 時回傳負值 |
+| `0`：Current | 保留既有格式及有限值捨入方式；固定數值欄寬／precision | 計算嘗試輸出的字數；不回報 UART timeout |
+
+兩個模式共用的格式如下：
+
+| 格式 | 用途 | 範例 |
+| --- | --- | --- |
+| `%s`、`%c`、`%%` | 字串、字元、百分號 | `"name=%s char=%c %%"` |
+| `%d`／`%i`、`%u` | 有號／無號十進位 | `"value=%d count=%u"` |
+| `%x`／`%X`、`%o`、`%p` | 十六進位、八進位、指標 | `"byte=%02X ptr=%p"` |
+| `l`／`ll` | `long`／`long long` 整數 | `"count=%lu total=%llu"` |
+| `%f`／`%F`、`%e`／`%E` | 浮點與科學記號 | `"voltage=%.3f value=%.2e"` |
+| 欄寬、precision、格式旗標 | 補零、靠左、正號、字串長度等 | `"[%+08d][%-12.8s]"` |
+
+`unsigned long` 使用 `%lu`／`%lX`；`unsigned long long` 使用 `%llu`／`%llX`。
+byte／short 搭配 `%u`／`%X` 時轉成 `unsigned int`；指標搭配 `%p` 時轉成 `void *`。
+浮點數的 NaN／Inf 以 `nan`／`inf` 顯示，大寫格式使用大寫字樣；負零保留負號。
+科學記號輸出完整指數。
+小數位依 precision 逐字輸出，不受固定字串緩衝區長度限制；位數越多，UART 輸出時間也越長。
+
+| Full 模式新增格式 | 用途 | 範例 |
+| --- | --- | --- |
+| `*` 欄寬、`.*` precision | 從 `int` 引數取得；負欄寬為靠左，負 precision 為未指定 | `tiny_printf("[%*.*f]", 12, 3, voltage);` |
+| `hh`、`h`、`j`、`z`、`t` | 對應窄整數、`intmax_t`、`size_t`、`ptrdiff_t` | `tiny_printf("size=%zu delta=%td", size, delta);` |
+| `L` | 對應 `long double`；精度仍依工程的浮點型別設定 | `tiny_printf("%.6Lg", value);` |
+| `%g`／`%G` | 依有效位數選擇固定小數或科學記號 | `tiny_printf("%.6g", value);` |
+| `%a`／`%A` | 十六進位浮點及二進位指數 | `tiny_printf("%a", value);` |
+| `%n` 及其整數長度修飾 | 將目前成功輸出的字數寫入對應型別的指標 | `tiny_printf("ABC%n", &count);` |
+| `%lc`／`%ls` | 固定 C locale 的 ASCII wide 字元轉換 | `tiny_printf("%lc %ls", L'A', L"ABC");` |
+
+Full 的 `%#x` 會產生 `0x` 前綴；整數 precision 為 0 且數值為 0 時不輸出數字，`%#.0o` 則輸出 `0`。
+整數指定 precision 時忽略 `0` 補零旗標，靠左時也忽略 `0`。
+`%p` 採 `0x` 加十六進位，空指標為 `0x0`；這是本格式器的指標表示方式。
+
+C99 定義格式行為，CC-RH library 則是編譯器提供的實作；兩者的涵蓋範圍並不完全相同。
+Full 以 C99 格式為基準，不委派給 CC-RH 原生 `printf`。
+此 MCU 版本固定使用 C locale 與 nearest／ties-to-even，不提供動態 locale 或浮點捨入環境切換。
+`%lc`／`%ls` 遇到無法以 ASCII 表示的字元會回傳負值；`%s` 仍可逐 byte 輸出既有編碼字串。
+CC-RH 專案的 `double`／`long double` 由 `-Xdbl_size` 決定；增加輸出小數位不會增加原始浮點有效位數。
+Full 的格式定義參考 [C11 草案 §7.21.6](https://www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf)；CC-RH 的格式與 `%p` 定義見 [原廠 sprintf 說明](https://tool-support.renesas.com/autoupdate/support/onlinehelp/csp/V8.14.00/CS%2B.chm/Compiler-CCRH.chm/Output/ccrh07c0407y1300.html)。
+
+`retarget.c` 使用 C99，CS+ 專案已包含對應編譯設定；其餘手寫模組維持 C90 的編寫方式。
+`SendChar()` 保留既有 UART 等待上限，成功寫入資料暫存器時回傳 byte，timeout 時回傳 `-1`。
+Full 會停止這次文字輸出並回傳負值；成功字數不代表 UART 線路上的接收端已確認收到。
+
+格式器透過 `putchar()` 呼叫 `SendChar()` 輸出至 UART0，每個字元保留有限等待上限。
 Log 放在前景流程；ISR 保留接收、tick 或事件記錄，Flash 擦寫期間也不執行文字格式化。
 CAN、UART／Xmodem 與 I2C 的 ISP 資料傳輸各自使用其資料介面。
 
@@ -442,4 +491,4 @@ PC 到 MCU host 的 Host Baud 與 CAN bus 速率分別記錄，不將 data rate 
 
 ---
 
-[上一主題：Classical CAN／CAN FD device 工程](can-device.html) · [指南入口](index.html) · [下一主題：UART／Xmodem／I2C device 工程](serial-device.html)
+[上一主題：Classical CAN／CAN FD device 工程](can-device.html) · [指南入口](index.html) · [下一主題：串列 ISP 共用工程與協定契約](serial-device.html)

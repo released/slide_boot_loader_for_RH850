@@ -16,7 +16,7 @@ The shared public-writing policy applies to this site and future chapters.
   Flash/RAM addresses and FCL RAM requirements against this project's sources.
 - Source comments are English; firmware remains C90. Documentation-only changes
   do not authorize firmware behavior changes, board access, Git push or deployment.
-- RL78 is the reader-topic baseline. Keep matching titles/order,60 mapped topics,
+- RL78 is the reader-topic baseline. Keep matching titles/order,mapped topics,
   platform specification tables and direct timing links using the shared Tool
   contract/navigation module. Use the same RL78 HTML/CSS theme;do not fork styles.
 - Run scripts/verify_local.ps1 and actual desktop/narrow browser checks. Rebuild

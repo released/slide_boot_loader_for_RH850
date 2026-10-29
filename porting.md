@@ -52,6 +52,15 @@ CAN／CAN FD 的 Boot、App、Transfer 是獨立工程；串列 ISP 亦各自持
 具體名稱見 [工程與用途](can-device.html#rh850-can-device) 與 [串列工程](serial-device.html)。
 App 功能修改從該 App 的 `custom_func.c`、`app_image_config.h` 及 `app_irq_handlers.h` 開始。
 
+#### 依修改目的選擇設定入口
+
+| 修改目的 | 主要編輯位置 | Boot 是否需要配套修改 |
+| --- | --- | --- |
+| App 功能、版本或一般 IRQ | App `custom_func.c`、ISR、`app_image_config.h`、`app_irq_handlers.h` | 契約及既有轉送範圍內不需重建 Boot；App Rebuild 後核對報告 |
+| 更新介面、速率、ID／address | Boot／App 通訊 header、SC／driver、metadata profile及Tool選項 | 需要；單一介面的工程分別設定，另保留診斷UART |
+| Flash 分區或容量 | `image_metadata_config.h`、linker、startup、封裝與Flash backend | 需要；核對 erase／write 單位、保護範圍及安裝方式 |
+| 新 MCU／板子 | MCU header、clock／pin、IRQ配置、RAM、Flash library及上述契約 | 需要；先完成獨立Boot／App／Transfer建置及板端驗證 |
+
 <a id="guide-porting-3"></a>
 
 ### 2. Flash 與映像配置
@@ -298,4 +307,4 @@ App 功能、版本與既定 IRQ mapping 的修改使用 App-only 建置。
 
 ---
 
-[上一主題：UART／Xmodem／I2C device 工程](serial-device.html) · [指南入口](index.html) · [下一主題：Flash、Metadata 與 CAN 封包參考](reference.html)
+[上一主題：Xmodem Bootloader 與協定格式](xmodem-device.html) · [指南入口](index.html) · [下一主題：Flash、Metadata 與 CAN 封包參考](reference.html)

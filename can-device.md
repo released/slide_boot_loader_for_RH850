@@ -295,6 +295,8 @@ FD沿用本工程的256-byte Flash page與FCL RAM鏈；完整mapping、產物與
 
 ### 更新區塊與 Flash 交接
 
+<a id="rh850-can-block-write"></a>
+
 #### CAN 區塊與 Flash page
 
 Tool 先完成 BIN／live 契約比對、metadata staging／seal 與 START，再依序傳送 BEGIN／raw data／COMMIT。

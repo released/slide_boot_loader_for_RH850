@@ -8,6 +8,15 @@
 依閱讀目的選擇 MCU device 工程、App 設定、移植或格式參考。
 日常更新與通訊驗證見 [Simple Renesas ISP Tool](../slide_simple_renesas_isp_tool/)。
 
+## 依閱讀目的查閱
+
+| 目的 | 直接入口 |
+| --- | --- |
+| 使用Tool更新App | [CAN／CAN FD操作](../slide_simple_renesas_isp_tool/can-update.html)／[UART／Xmodem／I2C操作](../slide_simple_renesas_isp_tool/serial-isp.html) |
+| 修改App或增加IRQ | [Metadata設定](app-development.html#guide-app-development-2)／[IRQ範例](app-development.html#guide-app-development-3)／[本地建置](app-development.html#guide-app-development-4) |
+| 移植到其他板子或MCU | [修改範圍與工程配置](porting.html#guide-porting-2) |
+| 查協定與欄位 | [CAN格式](reference.html#guide-reference-10)／[串列共用契約](serial-device.html#guide-serial-device-5) |
+
 ## 快速查閱
 
 | 資料 | 適用內容 | 直接連結 |
@@ -23,7 +32,10 @@
 | --- | --- |
 | [Classical CAN／CAN FD device 工程](can-device.html) | EVM、CAN port、接收資源、更新 owner 與 Boot 啟動流程。 |
 | [App Metadata、IRQ 與更新耗時](app-development.html) | C header 編輯、512-entry IRQ table、建置產物及 CAN FD 實測時間。 |
-| [UART／Xmodem／I2C device 工程](serial-device.html) | 獨立串列工程、資料／Log 介面與 IRQ／回覆完成邊界。 |
+| [串列 ISP 共用工程與協定契約](serial-device.html) | 平台配置、C header、建置、Metadata、SC 與共用 Frame／命令／INFO／Status。 |
+| [UART Bootloader 與協定格式](uart-device.html) | 資料 UART、接收中斷、framed ISP 更新、封包範例與診斷。 |
+| [I2C Bootloader 與協定格式](i2c-device.html) | I2C Slave、STOP mailbox、111-byte reply window 與更新完成條件。 |
+| [Xmodem Bootloader 與協定格式](xmodem-device.html) | Framed control、XMODEM-CRC128、串流寫入、重送與最終 ACK。 |
 | [Boot／App 移植與 Flash](porting.html) | 位址、HAL 入口、FCL RAM 執行、startup 與映像交接。 |
 | [Flash、Metadata 與 CAN 封包參考](reference.html) | RH850 位址、256-byte Metadata 範例、8-byte control 與 raw data。 |
 | [Tool 操作與通訊驗證入口](tool-guides.html) | 共用 ISP Tool、更新報告、Custom Transfer 與操作章節的連結。 |
@@ -35,6 +47,16 @@
 | Classical CAN | [Boot／App與CAN1／CAN4](can-device.html#rh850-can-device) | [App更新](../slide_simple_renesas_isp_tool/can-update.html) |
 | CAN FD | [Boot／App、FD+BRS與raw64](can-device.html#guide-can-device-5) | [CAN FD更新](../slide_simple_renesas_isp_tool/can-update.html#can-fd-update) |
 | Custom Transfer | [CAN／CAN FD獨立Transfer工程](can-device.html#rh850-can-device) | [通訊測試](../slide_simple_renesas_isp_tool/custom-transfer.html) |
+
+## 串列 Bootloader 與協定格式
+
+| 介面 | Bootloader | Protocol Format |
+| --- | --- | --- |
+| UART | [初始化與更新流程](uart-device.html#uart-boot-flow) | [封包、範例與完成條件](uart-device.html#uart-protocol) |
+| I2C | [初始化與更新流程](i2c-device.html#i2c-boot-flow) | [封包、範例與完成條件](i2c-device.html#i2c-protocol) |
+| Xmodem | [初始化與更新流程](xmodem-device.html#xmodem-boot-flow) | [封包、範例與完成條件](xmodem-device.html#xmodem-protocol) |
+
+共用工程、Metadata、建置與 Frame／INFO／Status 見[串列 ISP 共用契約](serial-device.html)。
 
 ## Basic 參考工程
 

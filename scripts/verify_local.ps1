@@ -32,7 +32,9 @@ foreach($page in $map.pages.PSObject.Properties.Name){
                     if($id -ne 'article_top'){
                         $entry=$targetMap.aliases.PSObject.Properties[$id]
                         if(!$entry){throw ('Unknown cross-chapter anchor: '+$reference)}
-                        if($parts.Count -gt 1 -and $parts[1] -ne 'index.html' -and $entry.Value.page -ne $parts[1]){throw ('Anchor belongs to another chapter: '+$reference)}
+                        # Fragment-only legacy links are resolved by guide-routes.js.
+                        # Explicit chapter links must already name the owning page.
+                        if(!$reference.StartsWith('#') -and $parts.Count -gt 1 -and $parts[1] -ne 'index.html' -and $entry.Value.page -ne $parts[1]){throw ('Anchor belongs to another chapter: '+$reference)}
                     }
                 }
             }
