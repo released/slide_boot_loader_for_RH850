@@ -1,6 +1,6 @@
 # RH850 Bootloader 實作指南
 
-[App BIN 更新耗時比較](app-development.html#rh850-update-timing) 提供CAN FD各BIN大小的實測時間。
+[App BIN 更新耗時比較](app-development.html#rh850-update-timing) 提供 Classical CAN／CAN FD 各 BIN 大小的實測時間。
 
 網頁入口為 `index.html`；每個主題有自己的 Markdown、網頁與目錄。
 內容以 R7F701684 EVM 的獨立 Boot／App／Custom Transfer 工程為例，涵蓋 Classical CAN、CAN FD 與串列 ISP。
@@ -36,6 +36,9 @@ UART／I2C／Xmodem 的傳輸原稿為 Tool `docs/ISP_SERIAL_TRANSPORT_GUIDE_zh-
 量測摘要保留來源報告檔名、SHA256、實際輸入大小、分階段與總耗時，以及完成／診斷結果。
 Metadata bytes 範例與更新耗時的輸入分別標示來源；工程 BIN 範例不作為其他容量的量測結果。
 維護來源為 `docs/data/rh850_update_timing` 與 `docs/data/rh850_image_example.json`，網站副本位於 `data`。
+一般同步使用已保存的量測摘要；加入已核對的新報告時，對 `sync_rh850_device.ps1` 指定
+`-ReportName 'update_YYYYMMDD_HHMMSS_example.json'`（檔名須存在於 Tool 的 `build/reports`）。
+可傳入多個檔名；`-CheckOnly` 只核對、不寫檔。測試期間產生的其他報告不會自動匯入。
 需要更新 bytes 範例時，維護者以 `FIRMWARE_RH850_FD_APP_PROJECT` 指向既有 FD App 工程；未指定時使用保存的範例快照。
 
 共用樣式與 Markdown／Mermaid renderer 使用 `/notices_can/assets/`。

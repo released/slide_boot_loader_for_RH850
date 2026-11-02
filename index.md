@@ -21,7 +21,7 @@
 
 | 資料 | 適用內容 | 直接連結 |
 | --- | --- | --- |
-| **App BIN 更新耗時比較** | RH850 CAN FD 各 App BIN 大小的實測時間 | [查看更新耗時表](app-development.html#rh850-update-timing) |
+| **App BIN 更新耗時比較** | RH850 Classical CAN／CAN FD 各 App BIN 大小的實測時間 | [查看更新耗時表](app-development.html#rh850-update-timing) |
 | Metadata 每個byte與address | 欄位、範例值、來源及修改位置 | [查看格式表](reference.html#rh850-metadata-bytes) |
 | App 新增IRQ與執行路徑 | ISR、mapping、產表、交接與成本 | [查看IRQ教學](app-development.html#rh850-app-editing) |
 | Boot安裝與debug monitor配置 | Flash／RAM、保護範圍及燒錄檔 | [查看安裝條件](porting.html#guide-porting-4) |
@@ -31,7 +31,7 @@
 | 主題 | 內容 |
 | --- | --- |
 | [Classical CAN／CAN FD device 工程](can-device.html) | EVM、CAN port、接收資源、更新 owner 與 Boot 啟動流程。 |
-| [App Metadata、IRQ 與更新耗時](app-development.html) | C header 編輯、512-entry IRQ table、建置產物及 CAN FD 實測時間。 |
+| [App Metadata、IRQ 與更新耗時](app-development.html) | C header 編輯、512-entry IRQ table、建置產物及 CAN／CAN FD 實測時間。 |
 | [串列 ISP 共用工程與協定契約](serial-device.html) | 平台配置、C header、建置、Metadata、SC 與共用 Frame／命令／INFO／Status。 |
 | [UART Bootloader 與協定格式](uart-device.html) | 資料 UART、接收中斷、framed ISP 更新、封包範例與診斷。 |
 | [I2C Bootloader 與協定格式](i2c-device.html) | I2C Slave、STOP mailbox、111-byte reply window 與更新完成條件。 |
