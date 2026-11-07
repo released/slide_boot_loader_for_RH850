@@ -4,7 +4,7 @@
 
 網頁入口為 `index.html`；每個主題有自己的 Markdown、網頁與目錄。
 內容以 R7F701684 EVM 的獨立 Boot／App／Custom Transfer 工程為例，涵蓋 Classical CAN、CAN FD 與串列 ISP。
-工程使用 C header、CS+／CC-RH 與 Windows PowerShell；讀者不需要安裝文件產生工具。
+工程使用 C header、CS+／CC-RH 與 Windows PowerShell；文件產生工具不屬於 MCU 工程的建置需求。
 
 | 主題 | 內容 |
 | --- | --- |
